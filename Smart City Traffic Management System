@@ -1,0 +1,216 @@
+import java.util.*;
+
+public class SmartCityTrafficSystem {
+
+    // ---------------- Data Models ----------------
+    static class Intersection {
+        String name;
+        int queueLength = 0;
+        boolean isRed = false;
+        double greenTime = 10.0;
+
+        Intersection(String name) {
+            this.name = name;
+        }
+    }
+
+    static class Road {
+        Intersection from;
+        Intersection to;
+        boolean blocked = false;
+
+        Road(Intersection from, Intersection to) {
+            this.from = from;
+            this.to = to;
+        }
+    }
+
+    // ---------------- Main System ----------------
+    private final List<Intersection> intersections = new ArrayList<>();
+    private final List<Road> roads = new ArrayList<>();
+    private final Scanner sc = new Scanner(System.in);
+    private final Random rand = new Random();
+
+    public SmartCityTrafficSystem() {
+        // Create intersections
+        Intersection A = new Intersection("A");
+        Intersection B = new Intersection("B");
+        Intersection C = new Intersection("C");
+        Intersection D = new Intersection("D");
+        intersections.addAll(Arrays.asList(A, B, C, D));
+
+        // Create road network
+        roads.add(new Road(A, B));
+        roads.add(new Road(B, C));
+        roads.add(new Road(C, D));
+        roads.add(new Road(D, A));
+        roads.add(new Road(A, C));
+        roads.add(new Road(B, D));
+    }
+
+    // ---------------- Simulation Logic ----------------
+    public void start() {
+        boolean running = true;
+
+        while (running) {
+            showMenu();
+            int choice = getChoice();
+
+            switch (choice) {
+                case 1 -> showTrafficStatus();
+                case 2 -> simulateTrafficUpdate();
+                case 3 -> toggleRoadBlock();
+                case 4 -> findBestRoute();
+                case 5 -> {
+                    System.out.println("\n✅ Exiting Smart City Traffic Management System...");
+                    running = false;
+                }
+                default -> System.out.println("❌ Invalid choice! Try again.");
+            }
+        }
+    }
+
+    // ---------------- Menu Interface ----------------
+    private void showMenu() {
+        System.out.println("\n=============================");
+        System.out.println(" SMART CITY TRAFFIC SYSTEM ");
+        System.out.println("=============================");
+        System.out.println("1. View Traffic Status");
+        System.out.println("2. Simulate Next Traffic Update");
+        System.out.println("3. Block/Unblock a Road");
+        System.out.println("4. Find Best Route (Dijkstra)");
+        System.out.println("5. Exit");
+        System.out.print("Enter your choice: ");
+    }
+
+    private int getChoice() {
+        try {
+            return Integer.parseInt(sc.nextLine());
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
+    // ---------------- Feature 1: Display Status ----------------
+    private void showTrafficStatus() {
+        System.out.println("\n🚦 Intersections Status:");
+        for (Intersection i : intersections) {
+            System.out.printf(" - %s | Queue: %2d | Signal: %-5s | Green Time: %.1fs%n",
+                    i.name, i.queueLength, i.isRed ? "RED" : "GREEN", i.greenTime);
+        }
+
+        System.out.println("\n🛣️ Road Network:");
+        for (Road r : roads) {
+            System.out.printf(" - %s → %s : %s%n", r.from.name, r.to.name, r.blocked ? "BLOCKED" : "OPEN");
+        }
+    }
+
+    // ---------------- Feature 2: Simulate Traffic ----------------
+    private void simulateTrafficUpdate() {
+        for (Intersection i : intersections) {
+            i.queueLength = Math.max(0, i.queueLength + rand.nextInt(10) - rand.nextInt(6));
+            i.isRed = i.queueLength > 10;
+            i.greenTime = 5 + i.queueLength * 0.4;
+        }
+
+        // Random road blocking event
+        if (rand.nextInt(5) == 0) {
+            Road r = roads.get(rand.nextInt(roads.size()));
+            r.blocked = !r.blocked;
+            System.out.println("\n⚠️ Traffic Update: Road " + r.from.name + " → " + r.to.name +
+                    (r.blocked ? " is now BLOCKED!" : " is now OPEN!"));
+        } else {
+            System.out.println("\n✅ Traffic simulation step completed. No new incidents.");
+        }
+    }
+
+    // ---------------- Feature 3: Manually Block/Unblock ----------------
+    private void toggleRoadBlock() {
+        System.out.println("\nSelect a road to toggle:");
+        for (int i = 0; i < roads.size(); i++) {
+            Road r = roads.get(i);
+            System.out.printf("%d. %s → %s (%s)%n", i + 1, r.from.name, r.to.name, r.blocked ? "BLOCKED" : "OPEN");
+        }
+
+        System.out.print("Enter road number: ");
+        int choice = getChoice();
+
+        if (choice < 1 || choice > roads.size()) {
+            System.out.println("❌ Invalid selection!");
+            return;
+        }
+
+        Road selected = roads.get(choice - 1);
+        selected.blocked = !selected.blocked;
+        System.out.println("🚧 Road " + selected.from.name + " → " + selected.to.name +
+                (selected.blocked ? " is BLOCKED." : " is OPEN now."));
+    }
+
+    // ---------------- Feature 4: Dijkstra’s Algorithm ----------------
+    private void findBestRoute() {
+        System.out.print("\nEnter source intersection (A-D): ");
+        String srcName = sc.nextLine().toUpperCase();
+        System.out.print("Enter destination intersection (A-D): ");
+        String destName = sc.nextLine().toUpperCase();
+
+        Intersection src = getIntersection(srcName);
+        Intersection dest = getIntersection(destName);
+
+        if (src == null || dest == null) {
+            System.out.println("❌ Invalid intersection name!");
+            return;
+        }
+
+        Map<Intersection, List<Intersection>> graph = new HashMap<>();
+        for (Intersection i : intersections)
+            graph.put(i, new ArrayList<>());
+        for (Road r : roads)
+            if (!r.blocked)
+                graph.get(r.from).add(r.to);
+
+        Map<Intersection, Integer> dist = new HashMap<>();
+        Map<Intersection, Intersection> prev = new HashMap<>();
+        for (Intersection i : intersections)
+            dist.put(i, Integer.MAX_VALUE);
+        dist.put(src, 0);
+
+        Queue<Intersection> queue = new LinkedList<>();
+        queue.add(src);
+
+        while (!queue.isEmpty()) {
+            Intersection current = queue.poll();
+            for (Intersection neighbor : graph.get(current)) {
+                if (dist.get(neighbor) > dist.get(current) + 1) {
+                    dist.put(neighbor, dist.get(current) + 1);
+                    prev.put(neighbor, current);
+                    queue.add(neighbor);
+                }
+            }
+        }
+
+        if (!prev.containsKey(dest)) {
+            System.out.println("🚫 No available route (some roads may be blocked).");
+            return;
+        }
+
+        List<String> path = new ArrayList<>();
+        for (Intersection at = dest; at != null; at = prev.get(at))
+            path.add(at.name);
+        Collections.reverse(path);
+
+        System.out.println("🛣️ Best Route: " + String.join(" → ", path));
+    }
+
+    private Intersection getIntersection(String name) {
+        for (Intersection i : intersections)
+            if (i.name.equalsIgnoreCase(name))
+                return i;
+        return null;
+    }
+
+    // ---------------- Main ----------------
+    public static void main(String[] args) {
+        SmartCityTrafficSystem system = new SmartCityTrafficSystem();
+        system.start();
+    }
+}
